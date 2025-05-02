@@ -1,0 +1,42 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  background: #22223b;
+  color: #fff;
+  padding: 2rem 1rem;
+}
+
+.sidebar h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar li {
+  margin-bottom: 1rem;
+}
+
+.sidebar a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.sidebar a.active {
+  color: #4ea8de;
+}
+
+.main-content {
+  flex: 1;
+  padding: 2rem;
+  background: #f8f9fa;
+}

@@ -1,0 +1,23 @@
+<div class="dashboard">
+  <h1>Stock Market Dashboard</h1>
+
+  <div class="search-bar">
+    <input
+      type="text"
+      [(ngModel)]="searchSymbol"
+      placeholder="Enter security symbol (e.g., AAPL)"
+      (keyup.enter)="onSearch()"
+    />
+    <button (click)="onSearch()">Search</button>
+  </div>
+
+  <p>Daily time series for {{ symbol }}</p>
+
+  <div *ngIf="loading">Loading data...</div>
+  <div *ngIf="error" class="error">{{ error }}</div>
+
+  <div *ngIf="series && series.length">
+    <canvas #chartCanvas></canvas>
+  </div>
+  <div *ngIf="series && !series.length && !loading && !error">No data available.</div>
+</div>
