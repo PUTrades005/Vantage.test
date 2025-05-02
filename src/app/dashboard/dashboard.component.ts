@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 import { ApiService, TimeSeriesDaily } from '../services/api.service';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { SMA, EMA, RSI, MACD, BollingerBands } from 'technicalindicators';
 
 @Component({
   selector: 'app-dashboard',
@@ -24,7 +25,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   public failedSymbols: string[] = [];
   public series: TimeSeriesDaily[] = [];
   public symbol = 'MSFT';
-  public searchSymbol: string = ''; // <-- Add this line
+  public searchSymbol: string = '';
+  public selectedIndicators: string[] = [];
 
   private symbols = ['AAPL', 'GOOG', 'MSFT'];
   private api = inject(ApiService);
@@ -33,8 +35,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     this.loadData();
   }
 
-  ngAfterViewInit(): void {
-  }
+  ngAfterViewInit(): void {}
 
   private initChart(): void {
     const canvas = this.chartCanvas.nativeElement;
@@ -43,22 +44,111 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       this.error = 'Unable to initialize chart context';
       return;
     }
+
+    if (this.chart) {
+      this.chart.destroy();
+    }
+
     const labels = this.series.map(s => s.date).reverse();
     const prices = this.series.map(s => s.close).reverse();
+
     const config: ChartConfiguration<'line'> = {
       type: 'line',
       data: {
         labels,
         datasets: [{
-          label: 'Stock Price',
+          label: `${this.symbol} Closing Price`,
           data: prices,
           borderColor: 'blue',
           fill: false
         }]
       },
-      options: { responsive: true }
+      options: {
+        responsive: true,
+        plugins: {
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          },
+          legend: {
+            display: true
+          }
+        },
+        scales: {
+          x: {
+            display: true,
+            title: {
+              display: true,
+              text: 'Date'
+            }
+          },
+          y: {
+            display: true,
+            title: {
+              display: true,
+              text: 'Price ($)'
+            },
+            ticks: {
+              callback: value => `$${value}`
+            }
+          }
+        }
+      }
     };
+
     this.chart = new Chart(ctx, config);
+    this.addIndicators();
+  }
+
+  private addIndicators(): void {
+    const closingPrices = this.series.map(s => s.close);
+    const high = this.series.map(s => s.high);
+    const low = this.series.map(s => s.low);
+    const volume = this.series.map(s => s.volume);
+
+    if (this.selectedIndicators.includes('SMA')) {
+      const sma = SMA.calculate({ period: 10, values: closingPrices });
+      const padded = Array(closingPrices.length - sma.length).fill(null).concat(sma);
+      this.chart.data.datasets.push({ label: '10-day SMA', data: padded, borderColor: 'orange', borderDash: [5, 5], fill: false });
+    }
+
+    if (this.selectedIndicators.includes('EMA')) {
+      const ema = EMA.calculate({ period: 10, values: closingPrices });
+      const padded = Array(closingPrices.length - ema.length).fill(null).concat(ema);
+      this.chart.data.datasets.push({ label: '10-day EMA', data: padded, borderColor: 'green', borderDash: [3, 3], fill: false });
+    }
+
+    if (this.selectedIndicators.includes('RSI')) {
+      const rsi = RSI.calculate({ values: closingPrices, period: 14 });
+      const padded = Array(closingPrices.length - rsi.length).fill(null).concat(rsi);
+      this.chart.data.datasets.push({ label: 'RSI', data: padded, borderColor: 'purple', borderDash: [2, 4], fill: false });
+    }
+
+    if (this.selectedIndicators.includes('MACD')) {
+      const macd = MACD.calculate({ values: closingPrices, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9, SimpleMAOscillator: false, SimpleMASignal: false });
+      const macdLine = macd.map(m => m.MACD);
+      const signalLine = macd.map(m => m.signal);
+      const histogram = macd.map(m => m.histogram);
+      const pad = closingPrices.length - macdLine.length;
+      this.chart.data.datasets.push({ label: 'MACD Line', data: Array(pad).fill(null).concat(macdLine), borderColor: 'red', fill: false });
+      this.chart.data.datasets.push({ label: 'MACD Signal', data: Array(pad).fill(null).concat(signalLine), borderColor: 'pink', borderDash: [1, 3], fill: false });
+      this.chart.data.datasets.push({ label: 'MACD Histogram', data: Array(pad).fill(null).concat(histogram), borderColor: 'gray', borderDash: [4, 2], fill: false });
+    }
+
+    if (this.selectedIndicators.includes('BollingerBands')) {
+      const bb = BollingerBands.calculate({ period: 20, stdDev: 2, values: closingPrices });
+      const upper = Array(closingPrices.length - bb.length).fill(null).concat(bb.map(b => b.upper));
+      const lower = Array(closingPrices.length - bb.length).fill(null).concat(bb.map(b => b.lower));
+      this.chart.data.datasets.push({ label: 'Upper BB', data: upper, borderColor: 'cyan', borderDash: [6, 2], fill: false });
+      this.chart.data.datasets.push({ label: 'Lower BB', data: lower, borderColor: 'cyan', borderDash: [6, 2], fill: false });
+    }
+
+    this.chart.update();
+  }
+
+  public toggleFullScreen(): void {
+    const el = this.chartCanvas.nativeElement;
+    if (el.requestFullscreen) el.requestFullscreen();
   }
 
   public loadData(): void {
@@ -86,7 +176,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     this.series = [];
     this.api.getDailyTimeSeries(this.symbol).subscribe({
       next: (data: TimeSeriesDaily[]) => {
-        console.log('API data:', data); // <-- Add this line
+        console.log('API data:', data);
         this.series = data;
         this.loading = false;
         setTimeout(() => this.initChart());
